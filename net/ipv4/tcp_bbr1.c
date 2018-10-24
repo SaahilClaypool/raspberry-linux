@@ -62,7 +62,7 @@ struct bbr {
 	struct minmax bw;	/* Max recent delivery rate in pkts/uS << 24 */
 	u32	rtt_cnt;	    /* count of packet-timed rounds elapsed */
 	u32     next_rtt_delivered; /* scb->tx.delivered at end of round */
-	struct skb_mstamp cycle_mstamp;  /* time of this cycle phase start */
+	u64 cycle_mstamp;  /* time of this cycle phase start */
 	u32     mode:3,		     /* current bbr_mode in state machine */
 		prev_ca_state:3,     /* CA state on previous ACK */
 		packet_conservation:1,  /* use packet conservation? */
@@ -200,12 +200,37 @@ static void bbr_set_pacing_rate(struct sock *sk, u32 bw, int gain)
 		sk->sk_pacing_rate = rate;
 }
 
+/* override sysctl_tcp_min_tso_segs */
+static u32 bbr_min_tso_segs(struct sock *sk)
+{
+	return sk->sk_pacing_rate < (bbr_min_tso_rate >> 3) ? 1 : 2;
+}
+
 /* Return count of segments we want in the skbs we send, or 0 for default. */
 static u32 bbr_tso_segs_goal(struct sock *sk)
 {
 	struct bbr *bbr = inet_csk_ca(sk);
 
 	return bbr->tso_segs_goal;
+}
+
+// Added from tcp_output.c. This used to non-static
+static u32 tcp_tso_autosize(const struct sock *sk, unsigned int mss_now,
+			    int min_tso_segs)
+{
+	u32 bytes, segs;
+
+	bytes = min(sk->sk_pacing_rate >> sk->sk_pacing_shift,
+		    sk->sk_gso_max_size - 1 - MAX_TCP_HEADER);
+
+	/* Goal is to send at least one packet per ms,
+	 * not one big TSO packet every 100 ms.
+	 * This preserves ACK clocking and is consistent
+	 * with tcp_tso_should_defer() heuristic.
+	 */
+	segs = max_t(u32, bytes / mss_now, min_tso_segs);
+
+	return segs;
 }
 
 static void bbr_set_tso_segs_goal(struct sock *sk)
@@ -382,7 +407,7 @@ static bool bbr_is_next_cycle_phase(struct sock *sk,
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct bbr *bbr = inet_csk_ca(sk);
 	bool is_full_length =
-		skb_mstamp_us_delta(&tp->delivered_mstamp, &bbr->cycle_mstamp) >
+		tcp_stamp_us_delta(&tp->delivered_mstamp, bbr->cycle_mstamp) >
 		bbr->min_rtt_us;
 	u32 inflight, bw;
 
@@ -468,7 +493,8 @@ static void bbr_reset_lt_bw_sampling_interval(struct sock *sk)
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct bbr *bbr = inet_csk_ca(sk);
 
-	bbr->lt_last_stamp = tp->delivered_mstamp.stamp_jiffies;
+	// bbr->lt_last_stamp = tp->delivered_mstamp;
+	bbr->lt_last_stamp = div_u64(tp->delivered_mstamp, USEC_PER_MSEC);
 	bbr->lt_last_delivered = tp->delivered;
 	bbr->lt_last_lost = tp->lost;
 	bbr->lt_rtt_cnt = 0;
@@ -574,10 +600,11 @@ static void bbr_lt_bw_sampling(struct sock *sk, const struct rate_sample *rs)
 		return;
 
 	/* Find average delivery rate in this sampling interval. */
-	t = (s32)(tp->delivered_mstamp.stamp_jiffies - bbr->lt_last_stamp);
+	// t = (s32)(tp->delivered_mstamp.stamp_jiffies - bbr->lt_last_stamp);
+	t = div_u64(tp->delivered_mstamp, USEC_PER_MSEC) - bbr->lt_last_stamp;
 	if (t < 1)
 		return;		/* interval is less than one jiffy, so wait */
-	t = jiffies_to_usecs(t);
+	// t = jiffies_to_usecs(t);
 	/* Interval long enough for jiffies_to_usecs() to return a bogus 0? */
 	if (t < 1) {
 		bbr_reset_lt_bw_sampling(sk);  /* interval too long; reset */
@@ -796,7 +823,7 @@ static void bbr_init(struct sock *sk)
 	bbr->idle_restart = 0;
 	bbr->full_bw = 0;
 	bbr->full_bw_cnt = 0;
-	bbr->cycle_mstamp.v64 = 0;
+	bbr->cycle_mstamp = 0;
 	bbr->cycle_idx = 0;
 	bbr_reset_lt_bw_sampling(sk);
 	bbr_reset_startup_mode(sk);
@@ -869,7 +896,8 @@ static struct tcp_congestion_ops tcp_bbr_cong_ops __read_mostly = {
 	.undo_cwnd	= bbr_undo_cwnd,
 	.cwnd_event	= bbr_cwnd_event,
 	.ssthresh	= bbr_ssthresh,
-	.tso_segs_goal	= bbr_tso_segs_goal,
+	// .tso_segs_goal	= bbr_tso_segs_goal,
+	.min_tso_segs	= bbr_min_tso_segs,
 	.get_info	= bbr_get_info,
 	.set_state	= bbr_set_state,
 };
