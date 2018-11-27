@@ -601,10 +601,10 @@ static void bbr_lt_bw_sampling(struct sock *sk, const struct rate_sample *rs)
 
 	/* Find average delivery rate in this sampling interval. */
 	// t = (s32)(tp->delivered_mstamp.stamp_jiffies - bbr->lt_last_stamp);
-	t = div_u64(tp->delivered_mstamp, USEC_PER_MSEC) - bbr->lt_last_stamp;
+	t = (s32)div_u64(tp->delivered_mstamp, USEC_PER_MSEC) - bbr->lt_last_stamp;
 	if (t < 1)
 		return;		/* interval is less than one jiffy, so wait */
-	// t = jiffies_to_usecs(t);
+	t = jiffies_to_usecs(t);
 	/* Interval long enough for jiffies_to_usecs() to return a bogus 0? */
 	if (t < 1) {
 		bbr_reset_lt_bw_sampling(sk);  /* interval too long; reset */
