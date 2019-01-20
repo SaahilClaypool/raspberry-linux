@@ -696,6 +696,22 @@ config TCP_CONG_BBR2
 	bufferbloat, policers, or AQM schemes that do not provide a delay
 	signal. It requires the fq ("Fair Queue") pacing packet scheduler.
 
+config TCP_CONG_BBR_SHALLOW
+	tristate "BBR_SHALLOW TCP"
+	default n
+	---help---
+
+	Updated bbr with 1.5 CNWD gain
+	BBR (Bottleneck Bandwidth and RTT) TCP congestion control aims to
+	maximize network utilization and minimize queues. It builds an explicit
+	model of the the bottleneck delivery rate and path round-trip
+	propagation delay. It tolerates packet loss and delay unrelated to
+	congestion. It can operate over LAN, WAN, cellular, wifi, or cable
+	modem links. It can coexist with flows that use loss-based congestion
+	control, and can operate with shallow buffers, deep buffers,
+	bufferbloat, policers, or AQM schemes that do not provide a delay
+	signal. It requires the fq ("Fair Queue") pacing packet scheduler.
+
 config TCP_CONG_BBR1
 	tristate "BBR1 TCP"
 	default n
@@ -752,6 +768,9 @@ choice
 	config DEFAULT_BBR2
 		bool "BBR2" if TCP_CONG_BBR2=y
 
+	config DEFAULT_BBR_SHALLOW
+		bool "BBR_SHALLOW" if TCP_CONG_BBR_SHALLOW=y
+
 	config DEFAULT_BBR1
 		bool "BBR1" if TCP_CONG_BBR1=y
 
@@ -780,6 +799,7 @@ config DEFAULT_TCP_CONG
 	default "cdg" if DEFAULT_CDG
 	default "bbr" if DEFAULT_BBR
 	default "bbr2" if DEFAULT_BBR2
+	default "bbr_shallow" if DEFAULT_BBR_SHALLOW
 	default "bbr1" if DEFAULT_BBR1
 	default "cubic"
 
