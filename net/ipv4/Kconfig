@@ -696,8 +696,8 @@ config TCP_CONG_BBR2
 	bufferbloat, policers, or AQM schemes that do not provide a delay
 	signal. It requires the fq ("Fair Queue") pacing packet scheduler.
 
-config TCP_CONG_BBR_SHALLOW
-	tristate "BBR_SHALLOW TCP"
+config TCP_CONG_BBRSHALLOW
+	tristate "BBRSHALLOW TCP"
 	default n
 	---help---
 
@@ -768,8 +768,8 @@ choice
 	config DEFAULT_BBR2
 		bool "BBR2" if TCP_CONG_BBR2=y
 
-	config DEFAULT_BBR_SHALLOW
-		bool "BBR_SHALLOW" if TCP_CONG_BBR_SHALLOW=y
+	config DEFAULT_BBRSHALLOW
+		bool "BBRSHALLOW" if TCP_CONG_BBRSHALLOW=y
 
 	config DEFAULT_BBR1
 		bool "BBR1" if TCP_CONG_BBR1=y
@@ -799,7 +799,7 @@ config DEFAULT_TCP_CONG
 	default "cdg" if DEFAULT_CDG
 	default "bbr" if DEFAULT_BBR
 	default "bbr2" if DEFAULT_BBR2
-	default "bbr_shallow" if DEFAULT_BBR_SHALLOW
+	default "bbrshallow" if DEFAULT_BBRSHALLOW
 	default "bbr1" if DEFAULT_BBR1
 	default "cubic"
 
